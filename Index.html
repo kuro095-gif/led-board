@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<title>내 폰 전광판</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#000000">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;600&display=swap">
+<style>
+/* Layout: 한 줄짜리 조작판 — 위에 실시간 미니 전광판, 아래로 문구·방식·색. 띄우면 전광판이 화면 전체를 덮는다 */
+:root{
+  --bg:#E8EAEE; --panel:#F6F7F9; --fg:#15181D; --muted:#5B6270; --line:#D2D6DD;
+  --accent:#9E5A00; --accent-fg:#FFFFFF;
+  --f-board:"Black Han Sans","Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-ui:"IBM Plex Sans KR","Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){--bg:#111317;--panel:#1A1D22;--fg:#E8EAEE;--muted:#9AA1AC;--line:#2D3139;--accent:#FFB000;--accent-fg:#1C1300;color-scheme:dark}
+}
+:root[data-theme="dark"]{--bg:#111317;--panel:#1A1D22;--fg:#E8EAEE;--muted:#9AA1AC;--line:#2D3139;--accent:#FFB000;--accent-fg:#1C1300;color-scheme:dark}
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-ui);font-size:15px;line-height:1.5;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:560px;margin:0 auto;padding-block:14px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px}
+
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+h1{font-family:var(--f-board);font-weight:400;font-size:26px;margin:0;letter-spacing:.02em}
+.hint{color:var(--muted);font-size:12.5px}
+
+/* 전광판 공통 */
+.board{position:relative;overflow:hidden;background:#000;--bbg:#000;--dot:5px}
+.board .txt{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:var(--f-board);font-weight:400;line-height:1.08;white-space:pre;text-align:center;will-change:transform}
+.board .dots{position:absolute;inset:0;pointer-events:none;display:none;opacity:.9;
+  background-image:radial-gradient(circle at center,transparent 0 42%,var(--bbg) 58%);background-size:var(--dot) var(--dot)}
+.board.led .dots{display:block}
+@keyframes blink{50%{opacity:0}}
+
+.mini{width:100%;max-width:100%;aspect-ratio:2/1;border-radius:14px;box-shadow:0 0 0 1px var(--line)}
+
+section{display:flex;flex-direction:column;gap:10px}
+.label{font-size:11.5px;font-weight:600;letter-spacing:.08em;color:var(--muted)}
+
+.compose{display:flex;flex-direction:column;gap:10px}
+textarea{font:inherit;font-size:20px;line-height:1.35;width:100%;box-sizing:border-box;min-height:64px;resize:vertical;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
+textarea:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.go{font:inherit;font-weight:600;font-size:18px;border:0;border-radius:12px;padding:15px;background:var(--accent);color:var(--accent-fg);cursor:pointer}
+.go:active{transform:translateY(1px)}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:inherit;font-size:14.5px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:999px;padding:7px 13px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.link{font:inherit;font-size:12.5px;color:var(--muted);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline}
+
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel)}
+.seg button{font:inherit;font-size:15px;border:0;background:none;color:var(--fg);padding:11px 4px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--accent);color:var(--accent-fg);font-weight:600}
+
+.sw{display:flex;flex-wrap:wrap;gap:10px}
+.sw button{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);cursor:pointer;padding:0;position:relative}
+.sw button.on::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:2px solid var(--accent)}
+
+input[type=range]{width:100%;accent-color:var(--accent)}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 14px}
+.toggle input{width:20px;height:20px;accent-color:var(--accent)}
+.foot{color:var(--muted);font-size:12.5px}
+
+/* 전체 화면 전광판 */
+#stage{position:fixed;inset:0;z-index:50;background:#000;touch-action:none;user-select:none;-webkit-user-select:none}
+#stage .board{position:absolute;inset:0}
+#stage.rot .board{inset:auto;left:50%;top:50%;transform:translate(-50%,-50%) rotate(90deg)}
+.bar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;
+  padding:14px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  background:linear-gradient(transparent,rgba(0,0,0,.75));transition:opacity .25s}
+.bar.off{opacity:0;pointer-events:none}
+.bar button{font:600 15px var(--f-ui);color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:10px 16px;cursor:pointer;backdrop-filter:blur(6px)}
+.bar .tip{flex-basis:100%;text-align:center;color:rgba(255,255,255,.7);font:12.5px var(--f-ui)}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:10px;font-size:13.5px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+@media (prefers-reduced-motion: reduce){.bar,.toast{transition:none}}
+</style>
+
+</head>
+<body>
+<div class="wrap" id="editor">
+  <header>
+    <h1>전광판</h1>
+    <span class="hint">미리보기는 실제 모양 그대로</span>
+  </header>
+
+  <div class="board mini" id="mini" aria-label="미리보기"><span class="txt"></span><div class="dots"></div></div>
+
+  <div class="compose">
+    <label class="label" for="text">띄울 문구 · 엔터로 줄바꿈</label>
+    <textarea id="text" rows="2" placeholder="글자나 이모지를 입력하세요"></textarea>
+    <button class="go" id="go" type="button">▶ 띄우기</button>
+  </div>
+
+  <section>
+    <span class="label">빠른 문구</span>
+    <div class="chips" id="presets"></div>
+  </section>
+
+  <section id="recentBox" hidden>
+    <div class="row"><span class="label">최근 띄운 문구</span><button class="link" id="clearRecent" type="button">지우기</button></div>
+    <div class="chips" id="recent"></div>
+  </section>
+
+  <section>
+    <span class="label">표시 방식</span>
+    <div class="seg" id="mode">
+      <button type="button" data-m="fixed">고정</button>
+      <button type="button" data-m="scroll">흐르기</button>
+      <button type="button" data-m="blink">깜빡임</button>
+    </div>
+  </section>
+
+  <section>
+    <span class="label">글자색</span>
+    <div class="sw" id="fg"></div>
+  </section>
+
+  <section>
+    <span class="label">배경색</span>
+    <div class="sw" id="bg"></div>
+  </section>
+
+  <section>
+    <div class="row"><label class="label" for="speed">속도 (흐르기·깜빡임)</label><span class="hint" id="speedVal"></span></div>
+    <input type="range" id="speed" min="1" max="10" step="1">
+  </section>
+
+  <label class="toggle" for="led"><span>LED 점무늬 효과</span><input type="checkbox" id="led"></label>
+
+  <section id="shareBox" hidden>
+    <span class="label">바로가기 링크</span>
+    <button class="chip" id="copyLink" type="button">지금 설정으로 링크 복사</button>
+    <span class="foot">이 링크를 열면 문구가 바로 뜹니다. 홈 화면에 추가하거나 QR로 만들어 두세요.</span>
+  </section>
+
+  <p class="foot">띄운 뒤: 화면 탭 → 메뉴 표시 · 좌우로 밀기 → 다른 문구로 바꾸기</p>
+</div>
+
+<div id="stage" hidden>
+  <div class="board" id="big"><span class="txt"></span><div class="dots"></div></div>
+  <div class="bar off" id="bar">
+    <button type="button" id="bMode">방식: 고정</button>
+    <button type="button" id="bRot">⟳ 회전</button>
+    <button type="button" id="bClose">✕ 닫기</button>
+    <span class="tip">좌우로 밀면 다른 문구 · 화면을 탭하면 메뉴가 숨어요</span>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+  var $=function(s){return document.querySelector(s)};
+  var PRESETS=['조용히 🤫','5분 남음 ⏰','잠시만요 ✋','감사합니다 🙏','화이팅!! 🔥','여기예요 🙋','👍','❤️'];
+  var FG=[['#FFB000','앰버'],['#FF3B30','빨강'],['#3DFF6E','초록'],['#33E1FF','하늘'],['#FFFFFF','흰색'],['#FF5CD6','분홍'],['#111111','검정']];
+  var BG=[['#000000','검정'],['#0A1A3F','남색'],['#FFFFFF','흰색'],['#FFD400','노랑']];
+  var MODES={fixed:'고정',scroll:'흐르기',blink:'깜빡임'};
+  var S={text:'조용히 🤫',mode:'scroll',fg:'#FFB000',bg:'#000000',speed:5,led:true};
+  var recent=[];
+
+  function load(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
+  function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+  Object.assign(S,load('jwp.s',{})); recent=load('jwp.r',[]);
+
+  // 주소로 넘어온 설정 (?t=문구&m=scroll&c=FFB000&b=000000&v=5&l=1)
+  var q=null; try{q=new URLSearchParams(location.search)}catch(e){}
+  var fromLink=!!(q&&q.get('t'));
+  if(fromLink){
+    S.text=q.get('t'); if(MODES[q.get('m')])S.mode=q.get('m');
+    if(/^[0-9a-fA-F]{6}$/.test(q.get('c')||''))S.fg='#'+q.get('c');
+    if(/^[0-9a-fA-F]{6}$/.test(q.get('b')||''))S.bg='#'+q.get('b');
+    var v=+q.get('v'); if(v>=1&&v<=10)S.speed=v;
+    if(q.has('l'))S.led=q.get('l')==='1';
+  }
+
+  // ---------- 전광판 그리기 ----------
+  function Board(el){
+    var self=this; this.el=el; this.t=el.querySelector('.txt'); this.raf=0; this.s=null; this.live=true;
+    if(window.ResizeObserver) new ResizeObserver(function(){ if(self.s&&self.live) self.draw(); }).observe(el);
+  }
+  Board.prototype.set=function(s){this.s=Object.assign({},s);this.live=true;this.draw()};
+  Board.prototype.stop=function(){cancelAnimationFrame(this.raf);this.live=false};
+  Board.prototype.draw=function(){
+    var s=this.s,el=this.el,t=this.t,self=this; cancelAnimationFrame(this.raf);
+    el.style.background=s.bg; el.style.setProperty('--bbg',s.bg); el.classList.toggle('led',!!s.led);
+    t.style.color=s.fg; t.style.textShadow=s.led?'0 0 .05em '+s.fg:'none'; t.style.animation='none';
+    var W=el.clientWidth,H=el.clientHeight; if(!W||!H) return;
+    el.style.setProperty('--dot',Math.max(3,Math.round(H/46))+'px');
+    var txt=(s.text||'').replace(/\s+$/,'')||' ';
+    if(s.mode==='scroll'){
+      t.textContent=txt.replace(/\s*\n\s*/g,'   ');
+      t.style.fontSize=(H*0.74)+'px'; t.style.left='0';
+      var tw=t.offsetWidth,x=W,last=performance.now(),vel=H*(0.25+s.speed*0.22);
+      var step=function(now){
+        x-=vel*Math.min(0.05,(now-last)/1000); last=now; if(x<-tw)x=W;
+        t.style.transform='translate('+x+'px,-50%)'; self.raf=requestAnimationFrame(step);
+      };
+      t.style.transform='translate('+x+'px,-50%)'; this.raf=requestAnimationFrame(step);
+    }else{
+      t.textContent=txt; t.style.left='50%'; t.style.transform='translate(-50%,-50%)';
+      t.style.fontSize='100px';
+      var w=t.offsetWidth,h=t.offsetHeight,k=Math.min(W*0.9/w,H*0.84/h);
+      t.style.fontSize=(100*k)+'px';
+      if(s.mode==='blink') t.style.animation='blink '+(1.7-s.speed*0.13).toFixed(2)+'s steps(1,end) infinite';
+    }
+  };
+
+  var mini=new Board($('#mini')), big=new Board($('#big'));
+
+  // ---------- 조작판 ----------
+  var ta=$('#text');
+  function persist(){save('jwp.s',S)}
+  function refresh(){mini.set(S);persist();paint()}
+  function paint(){
+    ta.value!==S.text&&(ta.value=S.text);
+    document.querySelectorAll('#mode button').forEach(function(b){b.classList.toggle('on',b.dataset.m===S.mode)});
+    document.querySelectorAll('#fg button').forEach(function(b){b.classList.toggle('on',b.dataset.c===S.fg)});
+    document.querySelectorAll('#bg button').forEach(function(b){b.classList.toggle('on',b.dataset.c===S.bg)});
+    document.querySelectorAll('#presets .chip,#recent .chip').forEach(function(b){b.classList.toggle('on',b.dataset.t===S.text)});
+    $('#speed').value=S.speed; $('#speedVal').textContent=S.speed+' / 10'; $('#led').checked=!!S.led;
+    $('#bMode').textContent='방식: '+MODES[S.mode];
+  }
+  function chip(t){var b=document.createElement('button');b.type='button';b.className='chip';b.textContent=t.replace(/\n/g,' ');b.dataset.t=t;b.onclick=function(){S.text=t;refresh()};return b}
+  function renderRecent(){
+    var box=$('#recent'); box.textContent=''; recent.forEach(function(t){box.appendChild(chip(t))});
+    $('#recentBox').hidden=!recent.length;
+  }
+  PRESETS.forEach(function(t){$('#presets').appendChild(chip(t))});
+  function swatches(id,list,key){
+    list.forEach(function(c){var b=document.createElement('button');b.type='button';b.style.background=c[0];b.dataset.c=c[0];
+      b.setAttribute('aria-label',c[1]);b.title=c[1];b.onclick=function(){S[key]=c[0];refresh()};$(id).appendChild(b)});
+  }
+  swatches('#fg',FG,'fg'); swatches('#bg',BG,'bg');
+  ta.addEventListener('input',function(){S.text=ta.value;mini.set(S);persist();paint()});
+  document.querySelectorAll('#mode button').forEach(function(b){b.onclick=function(){S.mode=b.dataset.m;refresh()}});
+  $('#speed').addEventListener('input',function(e){S.speed=+e.target.value;refresh()});
+  $('#led').addEventListener('change',function(e){S.led=e.target.checked;refresh()});
+  $('#clearRecent').onclick=function(){recent=[];save('jwp.r',recent);renderRecent()};
+  $('#go').onclick=function(){openBoard(true)};
+
+  var toastT;
+  function toast(m){var t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('show')},1800)}
+
+  // 링크 복사는 직접 올린 주소에서만 의미가 있으므로 그때만 보인다
+  var topLevel=false; try{topLevel=window.top===window.self}catch(e){}
+  if(topLevel&&/^https?:/.test(location.protocol)){
+    $('#shareBox').hidden=false;
+    $('#copyLink').onclick=function(){
+      var p=new URLSearchParams({t:S.text,m:S.mode,c:S.fg.slice(1),b:S.bg.slice(1),v:String(S.speed),l:S.led?'1':'0'});
+      var url=location.origin+location.pathname+'?'+p.toString();
+      if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url).then(function(){toast('링크를 복사했어요')},function(){toast(url)});
+      }else toast(url);
+    };
+  }
+
+  // ---------- 전체 화면 ----------
+  var stage=$('#stage'),bar=$('#bar'),userRot=null,wake=null,wentFull=false,barT;
+  function layout(){
+    var W=stage.clientWidth,H=stage.clientHeight,rot=userRot===null?H>W*1.1:userRot;
+    stage.classList.toggle('rot',rot);
+    var b=$('#big'); if(rot){b.style.width=H+'px';b.style.height=W+'px'}else{b.style.width='';b.style.height=''}
+    big.draw();
+  }
+  function goFull(){
+    var d=document.documentElement;
+    if(document.fullscreenElement||!d.requestFullscreen) return Promise.resolve();
+    return d.requestFullscreen({navigationUI:'hide'}).then(function(){
+      wentFull=true;
+      if(screen.orientation&&screen.orientation.lock) return screen.orientation.lock('landscape').catch(function(){});
+    }).catch(function(){});
+  }
+  function keepAwake(){
+    if(!('wakeLock' in navigator)) return;
+    navigator.wakeLock.request('screen').then(function(w){wake=w;w.addEventListener('release',function(){wake=null})}).catch(function(){});
+  }
+  function openBoard(gesture){
+    if(S.text.trim()){recent=[S.text].concat(recent.filter(function(t){return t!==S.text})).slice(0,8);save('jwp.r',recent);renderRecent()}
+    persist(); mini.stop(); stage.hidden=false; userRot=null; big.set(S); layout(); showBar();
+    if(gesture) goFull().then(function(){setTimeout(layout,250)});
+    keepAwake();
+  }
+  function closeBoard(){
+    big.stop(); stage.hidden=true;
+    if(document.fullscreenElement&&document.exitFullscreen) document.exitFullscreen().catch(function(){});
+    try{screen.orientation.unlock()}catch(e){}
+    if(wake){wake.release().catch(function(){});wake=null}
+    wentFull=false; mini.set(S); paint();
+  }
+  function showBar(){bar.classList.remove('off');clearTimeout(barT);barT=setTimeout(function(){bar.classList.add('off')},3000)}
+  function cycle(dir){
+    var list=[]; recent.concat(PRESETS).forEach(function(t){if(list.indexOf(t)<0)list.push(t)});
+    var i=list.indexOf(S.text); S.text=list[(i+dir+list.length)%list.length];
+    big.set(S); persist(); toast(S.text.replace(/\n/g,' '));
+  }
+  var px=0,py=0;
+  stage.addEventListener('pointerdown',function(e){px=e.clientX;py=e.clientY});
+  stage.addEventListener('pointerup',function(e){
+    if(bar.contains(e.target)&&!bar.classList.contains('off')) return;
+    var dx=e.clientX-px,dy=e.clientY-py;
+    if(stage.classList.contains('rot')){var tmp=dx;dx=dy;dy=-tmp}
+    if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)){cycle(dx<0?1:-1);return}
+    if(!document.fullscreenElement) goFull().then(function(){setTimeout(layout,250)});
+    if(bar.classList.contains('off')) showBar(); else bar.classList.add('off');
+  });
+  $('#bClose').onclick=closeBoard;
+  $('#bRot').onclick=function(){userRot=!stage.classList.contains('rot');layout();showBar()};
+  $('#bMode').onclick=function(){var k=Object.keys(MODES);S.mode=k[(k.indexOf(S.mode)+1)%k.length];big.set(S);persist();paint();showBar()};
+  window.addEventListener('resize',function(){if(!stage.hidden)layout()});
+  document.addEventListener('fullscreenchange',function(){if(!document.fullscreenElement&&wentFull&&!stage.hidden)closeBoard()});
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&!stage.hidden&&!wake)keepAwake()});
+
+  // ---------- 시작 ----------
+  renderRecent(); paint(); mini.set(S);
+  if(document.fonts&&document.fonts.ready) document.fonts.ready.then(function(){mini.s&&mini.live&&mini.draw();if(!stage.hidden)big.draw()});
+  if(fromLink) openBoard(false);
+})();
+</script>
+
+</body>
+</html>
